@@ -3,9 +3,11 @@ package com.vijendra.pulsestream.order.controller;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vijendra.pulsestream.order.dto.CreateOrderRequest;
+import com.vijendra.pulsestream.order.dto.OrderResponse;
 import com.vijendra.pulsestream.order.service.OrderService;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
@@ -19,6 +21,7 @@ import java.util.UUID;
 import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -42,6 +45,10 @@ class OrderControllerTest {
                 1,
                 BigDecimal.valueOf(100)
         );
+
+        OrderResponse expectedResponse = new OrderResponse("ORD-12345", "PENDING", "Order created successfully");
+        Mockito.when(orderService.createOrder(any()))
+                .thenReturn(expectedResponse);
 
 
         //Act
