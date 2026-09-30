@@ -1,2 +1,17 @@
 server:
   port: 8081
+
+spring:
+  application:
+    name: pulse-order-service
+
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafa.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+    properties:
+      spring.json.add.type.headers: true
+      acks: all
+

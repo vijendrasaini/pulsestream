@@ -1,4 +1,8 @@
 package com.vijendra.pulsestream.order.dto;
 
-public class CreateOrderRequest {
+public record CreateOrderRequest(
+        String customerId,
+        String itemSku,
+        int requestQuantity
+) {
 }

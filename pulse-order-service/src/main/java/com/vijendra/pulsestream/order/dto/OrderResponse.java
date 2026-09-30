@@ -1,4 +1,8 @@
 package com.vijendra.pulsestream.order.dto;
 
-public class OrderResponse {
+public record OrderResponse(
+        String orderId,
+        String status,
+        String message
+) {
 }
