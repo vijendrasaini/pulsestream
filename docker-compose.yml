@@ -1,0 +1,40 @@
+services:
+  pulse-kafka:
+    image: apache/kafka:4.2.2
+    container_name: pulse-kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFA_CLUSTER_ID: pulse-stream-cluster
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+
+      KAFKA_LISTENERS: EXTERNAL://:9092,CONTROLLER://:9093,INTERNAL://:9094
+      KAFKA_ADVERTISED_LISTENERS: EXTERNAL://localhost:9092,CONTROLLER://pulse-kafa:9093,INTERNAL://pulse-kafka:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT
+      
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@pulse-kafka:9093
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    volumes:
+      - pulse-stream-data:/data/kafka
+
+  pulse-kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: pulse-kafka-ui
+    ports:
+      - "8085:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: pulse-stream-cluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: pulse-kafka:9094
+    depends_on:
+      - pulse-kafka
+
+volumes:
+  pulse-stream-data:
