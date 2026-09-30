@@ -2,6 +2,7 @@ package com.vijendra.pulsestream.order.controller;
 
 import com.vijendra.pulsestream.order.dto.CreateOrderRequest;
 import com.vijendra.pulsestream.order.dto.OrderResponse;
+import com.vijendra.pulsestream.order.service.OrderService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -14,11 +15,14 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/orders")
 public class OrderController {
+    private final OrderService orderService;
+    public OrderController(OrderService orderService) {
+        this.orderService = orderService;
+    }
+
     @PostMapping
     ResponseEntity<OrderResponse> createOrder(@RequestBody CreateOrderRequest request) {
-        String orderId = ("ORD-" + UUID.randomUUID()).substring(0, 12);
-        String status = "PENDING";
-        String message = "Order created successfully";
-        return ResponseEntity.status(HttpStatus.CREATED).body(new OrderResponse(orderId, status, message));
+        OrderResponse response = orderService.createOrder(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 }

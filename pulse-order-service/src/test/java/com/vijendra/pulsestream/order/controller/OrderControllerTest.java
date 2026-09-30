@@ -3,15 +3,18 @@ package com.vijendra.pulsestream.order.controller;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vijendra.pulsestream.order.dto.CreateOrderRequest;
+import com.vijendra.pulsestream.order.service.OrderService;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 import java.util.function.BooleanSupplier;
 
@@ -27,13 +30,17 @@ class OrderControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @MockitoBean
+    private OrderService orderService;
+
     @Test
     void createOrder_shouldCreateOrderSuccessfully() throws Exception {
         //Arrange
         CreateOrderRequest request = new CreateOrderRequest(
                 ("CUSTOMER-" + UUID.randomUUID()).substring(0, 12),
                 "zero-to-one",
-                1
+                1,
+                BigDecimal.valueOf(100)
         );
 
 
