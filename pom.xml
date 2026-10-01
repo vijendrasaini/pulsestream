@@ -22,7 +22,7 @@
     <modules>
         <module>pulse-common-events</module>
         <module>pulse-order-service</module>
-<!--        <module>pulse-payment-service</module>-->
+        <module>pulse-payment-service</module>
 <!--        <module>pulse-inventory-service</module>-->
     </modules>
 
