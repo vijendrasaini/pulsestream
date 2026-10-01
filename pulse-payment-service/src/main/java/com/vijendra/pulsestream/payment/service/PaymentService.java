@@ -75,6 +75,6 @@ public class PaymentService {
                 completedEvent
         );
 
-        kafkaTemplate.send(KafkaTopicConfig.PAYMENT_EVENTS_TOPIC, orderId, completedEvent);
+        kafkaTemplate.send(KafkaTopicConfig.PAYMENT_EVENTS_TOPIC, orderId, paymentCompletedEnvelope);
     }
 }
