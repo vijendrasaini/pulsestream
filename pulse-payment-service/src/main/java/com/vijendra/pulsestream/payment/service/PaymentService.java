@@ -5,6 +5,7 @@ import com.vijendra.pulsestream.common.envelope.EventEnvelope;
 import com.vijendra.pulsestream.common.event.OrderCreatedEvent;
 import com.vijendra.pulsestream.common.event.PaymentCompletedEvent;
 import com.vijendra.pulsestream.common.event.PaymentFailedEvent;
+import com.vijendra.pulsestream.payment.config.KafkaTopicConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -20,7 +21,7 @@ public class PaymentService {
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private static final String PAYMENT_FAILED = "PAYMENT_FAILED";
     private static final String PAYMENT_COMPLETED = "PAYMENT_COMPLETED";
-    private static final String PAYMENT_EVENTS_TOPIC = "payment-events";
+
     private static final int MAX_LIMIT = 5000;
     Logger log = LoggerFactory.getLogger(PaymentService.class);
 
@@ -53,7 +54,7 @@ public class PaymentService {
                     failedEvent
             );
 
-            kafkaTemplate.send(PAYMENT_EVENTS_TOPIC, orderId, failEnvelope);
+            kafkaTemplate.send(KafkaTopicConfig.PAYMENT_EVENTS_TOPIC, orderId, failEnvelope);
             return;
         }
 
@@ -74,6 +75,6 @@ public class PaymentService {
                 completedEvent
         );
 
-        kafkaTemplate.send(PAYMENT_EVENTS_TOPIC, orderId, completedEvent);
+        kafkaTemplate.send(KafkaTopicConfig.PAYMENT_EVENTS_TOPIC, orderId, completedEvent);
     }
 }
