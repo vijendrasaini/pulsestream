@@ -1,5 +1,6 @@
 package com.vijendra.pulsestream.payment.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vijendra.pulsestream.common.envelope.EventEnvelope;
 import com.vijendra.pulsestream.common.event.OrderCreatedEvent;
 import org.slf4j.Logger;
@@ -9,10 +10,15 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class PaymentService {
+    private final ObjectMapper objectMapper;
     Logger log = LoggerFactory.getLogger(PaymentService.class);
+    public PaymentService(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
+
     @KafkaListener(topics = "order-events", groupId = "payment-service-group")
-    public void processOrderCreated(EventEnvelope<OrderCreatedEvent> envelope) {
-        log.info("Envelope : eventId:{}, timestamp:{}, eventType:{}, payload:{}", envelope.eventId(), envelope.timestamp(), envelope.eventType(), envelope.payload());
-        OrderCreatedEvent payload = envelope.payload();
+    public void processOrderCreated(EventEnvelope<?> envelope) {
+        OrderCreatedEvent payload = objectMapper.convertValue(envelope.payload(), OrderCreatedEvent.class);
+        log.info("Envelope : eventId:{}, timestamp:{}, eventType:{}, payload:{}", envelope.eventId(), envelope.timestamp(), envelope.eventType(), payload);
     }
 }
