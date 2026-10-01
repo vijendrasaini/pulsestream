@@ -2,6 +2,7 @@ package com.vijendra.pulsestream.order.service;
 
 import com.vijendra.pulsestream.common.envelope.EventEnvelope;
 import com.vijendra.pulsestream.common.event.OrderCreatedEvent;
+import com.vijendra.pulsestream.order.config.KafkaTopicConfig;
 import com.vijendra.pulsestream.order.dto.CreateOrderRequest;
 import com.vijendra.pulsestream.order.dto.OrderResponse;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -35,7 +36,7 @@ public class OrderService {
                 event
         );
 
-        kafkaTemplate.send("order-events", orderId, envelope);
+        kafkaTemplate.send(KafkaTopicConfig.ORDER_EVENTS_TOPIC, orderId, envelope);
 
         return new OrderResponse(orderId, "PENDING", "Order created and published to Kafka");
     }
