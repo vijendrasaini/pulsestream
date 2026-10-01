@@ -1,0 +1,11 @@
+package com.vijendra.pulsestream.payment;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class PulsePaymentApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(PulsePaymentApplication.class);
+    }
+}
