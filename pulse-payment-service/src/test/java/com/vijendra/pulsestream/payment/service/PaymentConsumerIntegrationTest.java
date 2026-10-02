@@ -4,10 +4,7 @@ import com.vijendra.pulsestream.common.envelope.EventEnvelope;
 import com.vijendra.pulsestream.common.event.OrderCreatedEvent;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.assertj.core.api.Assertions;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -42,7 +39,7 @@ public class PaymentConsumerIntegrationTest {
         registry.add("spring.kafka.bootstrap-servers", testcontainers::getBootstrapServers);
     }
 
-    BlockingQueue<EventEnvelope<?>> paymentEventQueue = new LinkedBlockingQueue<>();
+    private static final BlockingQueue<EventEnvelope<?>> paymentEventQueue = new LinkedBlockingQueue<>();
 
     @Autowired
     private KafkaTemplate<String, Object> kafkaTemplate;
