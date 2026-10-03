@@ -68,7 +68,7 @@ public class InventoryService {
         );
 
         EventEnvelope<InventoryReservedEvent> reservedEnvelope = EventEnvelope.of(
-                "INVENTORY_RESERVED ",
+                "INVENTORY_RESERVED",
                 payload.orderId(),
                 reservedEvent
         );
