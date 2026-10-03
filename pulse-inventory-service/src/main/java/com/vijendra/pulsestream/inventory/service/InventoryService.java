@@ -30,7 +30,7 @@ public class InventoryService {
     }
 
     @KafkaListener(topics = "order-events")
-    void processPaymentCompleted(EventEnvelope<?> eventEnvelope) {
+    void processOrderCreated(EventEnvelope<?> eventEnvelope) {
         log.info("Event Object: {}", eventEnvelope);
 
         OrderCreatedEvent payload = objectMapper.convertValue(eventEnvelope.payload(), OrderCreatedEvent.class);
