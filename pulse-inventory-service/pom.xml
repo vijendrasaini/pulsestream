@@ -24,5 +24,10 @@
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka</artifactId>
         </dependency>
+
+        <dependency>
+            <groupId>com.vijendra.pulsestream</groupId>
+            <artifactId>pulse-common-events</artifactId>
+        </dependency>
     </dependencies>
 </project>
