@@ -13,6 +13,7 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.kafka.KafkaContainer;
 import org.testcontainers.utility.DockerImageName;
 
@@ -26,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.*;
 
 @SpringBootTest
+@Testcontainers
 public class InventoryConsumerTest {
     @Container
     public static KafkaContainer kafkaContainer = new KafkaContainer(DockerImageName.parse("apache/kafka:3.7.0"));
@@ -35,7 +37,7 @@ public class InventoryConsumerTest {
 
     @DynamicPropertySource
     public static void overrideBootstrapServer(DynamicPropertyRegistry registry) {
-        registry.add("bootstrap-servers", kafkaContainer::getBootstrapServers);
+        registry.add("spring.kafka.bootstrap-servers", kafkaContainer::getBootstrapServers);
     }
 
     static BlockingQueue<EventEnvelope<?>> eventEnvelopeQueue = new LinkedBlockingQueue<>();
@@ -90,7 +92,7 @@ public class InventoryConsumerTest {
                 customerId,
                 new BigDecimal("2000.00"),
                 productName,
-                1,
+                1000,
                 Instant.now()
         );
 
