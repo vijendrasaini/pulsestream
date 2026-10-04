@@ -10,8 +10,13 @@ import com.vijendra.pulsestream.inventory.config.KafkaTopicConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.kafka.annotation.DltHandler;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.annotation.RetryableTopic;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.support.KafkaHeaders;
+import org.springframework.messaging.handler.annotation.Header;
+import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -29,12 +34,22 @@ public class InventoryService {
         this.objectMapper = objectMapper;
     }
 
+    @RetryableTopic(
+            attempts = "3",
+            backoff = @Backoff(delay = 1000, multiplier = 2.0),
+            autoCreateTopics = "true"
+    )
     @KafkaListener(topics = "order-events")
     void processOrderCreated(EventEnvelope<?> eventEnvelope) {
         log.info("Event Object: {}", eventEnvelope);
 
         OrderCreatedEvent payload = objectMapper.convertValue(eventEnvelope.payload(), OrderCreatedEvent.class);
         log.info("Event Payload: {}", payload);
+
+        if(payload.itemSku().equals("poison-pill")) {
+            log.error("Poison Pill observed.");
+            throw new RuntimeException("Simulating poison pill ....");
+        }
 
         if(payload.quantity() > 5) {
             log.info("Insufficient stock.");
@@ -75,5 +90,11 @@ public class InventoryService {
 
         log.info("published event : {}", reservedEnvelope);
         kafkaTemplate.send(KafkaTopicConfig.INVENTORY_EVENTS_TOPIC, payload.orderId(), reservedEnvelope);
+    }
+
+    @DltHandler
+    public void handleDLT(EventEnvelope<?> eventEnvelope, @Header(KafkaHeaders.RECEIVED_TOPIC) String topic) {
+        log.error("[handle DLT / DLQ] Poison pill from topic {}. EventId: {}, OrderId: {}",
+                topic, eventEnvelope.eventId(), eventEnvelope.aggregateId());
     }
 }
