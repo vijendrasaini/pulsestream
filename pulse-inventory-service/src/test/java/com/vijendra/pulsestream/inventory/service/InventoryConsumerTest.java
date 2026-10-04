@@ -41,6 +41,7 @@ public class InventoryConsumerTest {
     }
 
     static BlockingQueue<EventEnvelope<?>> eventEnvelopeQueue = new LinkedBlockingQueue<>();
+    static BlockingQueue<EventEnvelope<?>> dltQueue = new LinkedBlockingQueue<>();
 
     @BeforeEach
     void setUp() {
@@ -51,6 +52,12 @@ public class InventoryConsumerTest {
     void inventoryTopicListener(EventEnvelope<?> eventEnvelope) {
         eventEnvelopeQueue.add(eventEnvelope);
     }
+
+    @KafkaListener(topics = "order-events-dlt", groupId = "inventory-dlt-test-group")
+    void inventoryDLTListener(EventEnvelope<?> eventEnvelope) {
+        dltQueue.add(eventEnvelope);
+    }
+
 
     @Test
     public void processOrderCreated_shouldPublishInventoryReserved() throws InterruptedException {
@@ -110,5 +117,37 @@ public class InventoryConsumerTest {
         assertThat(envelope.payload()).asString().contains(productName);
 
         assertThat(envelope.eventType()).isEqualTo("INVENTORY_FAILED");
+    }
+
+    @Test
+    public void processOrderCreated_shouldGoTODLTHandler_whenEventIsPoisionPill() throws InterruptedException {
+        String orderId = ("ORD-" + UUID.randomUUID()).substring(0, 12);
+        String customerId = ("CUSTOMER-" + UUID.randomUUID()).substring(0, 12);
+        String itemSku = "poison-pill";
+        OrderCreatedEvent orderCreatedEvent = new OrderCreatedEvent(
+                orderId,
+                customerId,
+                new BigDecimal("2000.00"),
+                itemSku,
+                1000,
+                Instant.now()
+        );
+
+        EventEnvelope<OrderCreatedEvent> orderCreated = EventEnvelope.of(
+                "ORDER_CREATED",
+                orderId,
+                orderCreatedEvent
+        );
+
+        kafkaTemplate.send("order-events", orderId, orderCreated);
+
+//        try {
+//            Thread.sleep(5000); // observe default retry logic and listener logs
+//        } catch (InterruptedException e) {
+//            throw new RuntimeException(e);
+//        }
+
+        EventEnvelope<?> envelope = dltQueue.poll(7, TimeUnit.SECONDS);
+        assertThat(envelope).isNotNull();
     }
 }
