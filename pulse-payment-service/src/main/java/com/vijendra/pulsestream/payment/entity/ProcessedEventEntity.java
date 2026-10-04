@@ -16,7 +16,7 @@ import java.time.Instant;
 public class ProcessedEventEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    private String event_id;
+    private String eventId;
 
     private String eventType;
 
