@@ -2,6 +2,11 @@ spring:
   application:
     name: payment-service
 
+  datasource:
+    url: jdbc:mysql://localhost:3306/pulse_payments?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: root
+    password: root
+
   kafka:
     bootstrap-servers: localhost:9092
     consumer:
