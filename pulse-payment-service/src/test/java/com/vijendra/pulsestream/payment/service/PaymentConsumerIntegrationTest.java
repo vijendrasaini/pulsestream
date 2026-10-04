@@ -2,6 +2,11 @@ package com.vijendra.pulsestream.payment.service;
 
 import com.vijendra.pulsestream.common.envelope.EventEnvelope;
 import com.vijendra.pulsestream.common.event.OrderCreatedEvent;
+import com.vijendra.pulsestream.payment.entity.PaymentEntity;
+import com.vijendra.pulsestream.payment.entity.ProcessedEventEntity;
+import com.vijendra.pulsestream.payment.entity.enums.PaymentStatus;
+import com.vijendra.pulsestream.payment.repository.PaymentRepository;
+import com.vijendra.pulsestream.payment.repository.ProcessedEventRepository;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.*;
@@ -12,6 +17,7 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.KafkaUtils;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.kafka.KafkaContainer;
@@ -21,6 +27,8 @@ import org.testcontainers.utility.DockerImageName;
 import javax.print.Doc;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -31,12 +39,28 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 @Testcontainers
 public class PaymentConsumerIntegrationTest {
+    @Autowired private PaymentRepository paymentRepository;
+    @Autowired private ProcessedEventRepository processedEventRepository;
+
     @Container
     static KafkaContainer testcontainers = new KafkaContainer(DockerImageName.parse("apache/kafka:3.7.0"));
+
+    @Container
+    static MySQLContainer<?> mySQLContainer = new MySQLContainer<>(DockerImageName.parse("mysql:8.0"))
+            .withTmpFs(java.util.Map.of("/var/lib/mysql", "rw"))
+            .withCommand(
+                    "--performance_schema=OFF",
+                    "--innodb_doublewrite=0",
+                    "--innodb_flush_log_at_trx_commit=0"
+            );
 
     @DynamicPropertySource
     static void overrideKafkaProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.kafka.bootstrap-servers", testcontainers::getBootstrapServers);
+
+        registry.add("spring.datasource.url", mySQLContainer::getJdbcUrl);
+        registry.add("spring.datasource.username", mySQLContainer::getUsername);
+        registry.add("spring.datasource.password", mySQLContainer::getPassword);
     }
 
     private static final BlockingQueue<EventEnvelope<?>> paymentEventQueue = new LinkedBlockingQueue<>();
@@ -108,5 +132,44 @@ public class PaymentConsumerIntegrationTest {
         assertThat(envelope).isNotNull();
         assertThat(envelope.eventType()).isEqualTo("PAYMENT_FAILED");
         assertThat(envelope.aggregateId()).isEqualTo(orderId);
+    }
+
+    @Test
+    public void processOrderCreated_shouldProcessOrderOnce_WhenEventIsPostedTwice() throws InterruptedException {
+        String orderId = ("ORD-" + UUID.randomUUID()).substring(0, 12);
+        String customerId = ("CUSTOMER-" + UUID.randomUUID()).substring(0, 12);
+        String productName = "Hy lux-120";
+        OrderCreatedEvent orderCreatedEvent = new OrderCreatedEvent(
+                orderId,
+                customerId,
+                new BigDecimal("2000.00"),
+                productName,
+                1,
+                Instant.now()
+        );
+
+        EventEnvelope<OrderCreatedEvent> orderCreated = EventEnvelope.of(
+                "ORDER_CREATED",
+                orderId,
+                orderCreatedEvent
+        );
+
+        String eventId = orderCreated.eventId();
+
+        // Duplicate Events
+        kafkaTemplate.send("order-events", orderId, orderCreated);
+        kafkaTemplate.send("order-events", orderId, orderCreated);
+
+        EventEnvelope<?> envelope = paymentEventQueue.poll(5, TimeUnit.SECONDS);
+        assertThat(envelope).isNotNull();
+
+        EventEnvelope<?> envelope2 = paymentEventQueue.poll(2, TimeUnit.SECONDS);
+        assertThat(envelope2).isNull();
+
+        List<PaymentEntity> paymentsList = paymentRepository.findByOrderIdAndStatus(orderId, PaymentStatus.COMPLETED);
+        assertThat(paymentsList).hasSize(1);
+
+        Optional<ProcessedEventEntity> processedEvent = processedEventRepository.findById(eventId);
+        assertThat(processedEvent).isNotEmpty();
     }
 }
