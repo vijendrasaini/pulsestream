@@ -21,7 +21,7 @@ import java.util.Date;
 @NoArgsConstructor
 public class OrderEntity {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.UUID)
     private String id;
 
     private String customerId;
@@ -36,7 +36,7 @@ public class OrderEntity {
     private OrderStatus status = OrderStatus.PENDING;
 
     @CreationTimestamp
-    private Instant createAt = Instant.now();
+    private Instant createdAt = Instant.now();
 
     @UpdateTimestamp
     private Instant updatedAt;

@@ -5,6 +5,11 @@ spring:
   application:
     name: pulse-order-service
 
+  datasource:
+    url: jdbc:mysql://localhost:3306/pulse_orders?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: root
+    password: root
+
   kafka:
     bootstrap-servers: localhost:9092
     producer:
@@ -14,4 +19,12 @@ spring:
     properties:
       spring.json.add.type.headers: true
       acks: all
+
+    consumer:
+      group-id: order-service-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.vijendra.pulsestream.*"
 

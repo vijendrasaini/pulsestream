@@ -30,11 +30,8 @@ public class OrderService {
     private final ObjectMapper objectMapper;
 
     @Transactional
-    public OrderResponse createOrder(CreateOrderRequest request) throws JsonProcessingException {
-        String orderId = UUID.randomUUID().toString().substring(0, 36);
-
+    public OrderResponse createOrder(CreateOrderRequest request) {
         OrderEntity orderEntity = new OrderEntity();
-        orderEntity.setId(orderId);
         orderEntity.setCustomerId(request.customerId());
         orderEntity.setStatus(OrderStatus.PENDING);
         orderEntity.setTotalAmount(new BigDecimal(request.totalAmount().toString()));
@@ -42,7 +39,7 @@ public class OrderService {
         orderEntity.setQuantity(request.requestQuantity());
 
         orderEntity = orderRepository.save(orderEntity);
-
+        String orderId = orderEntity.getId();
         OrderCreatedEvent event = new OrderCreatedEvent(
                 orderId,
                 request.customerId(),
@@ -64,7 +61,12 @@ public class OrderService {
                 event
         );
 
-        String payload = objectMapper.writeValueAsString(envelope);
+        String payload;
+        try {
+            payload = objectMapper.writeValueAsString(envelope);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Failed to serialize outbox event payload", e);
+        }
         outboxEventEntity.setPayload(payload);
 
         outboxEventRepository.save(outboxEventEntity);
