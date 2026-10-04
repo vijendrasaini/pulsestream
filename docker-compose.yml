@@ -36,17 +36,16 @@ services:
     depends_on:
       - pulse-kafka
 
-  pulse-order-mysql:
+  pulse-mysql:
     image: mysql:8.0
-    container_name: pulse-order-mysql
+    container_name: pulse-mysql
     ports:
       - "3306:3306"
     environment:
       MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: pulse_orders
     volumes:
-      - pulse-order-db-data:/var/lib/mysql
+      - pulse-db-data:/var/lib/mysql
 
 volumes:
   pulse-stream-data:
-  pulse-order-db-data:
+  pulse-db-data:
