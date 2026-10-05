@@ -2,6 +2,7 @@ package com.vijendra.pulsestream.payment.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vijendra.pulsestream.common.envelope.EventEnvelope;
+import com.vijendra.pulsestream.common.event.InventoryFailedEvent;
 import com.vijendra.pulsestream.common.event.OrderCreatedEvent;
 import com.vijendra.pulsestream.common.event.PaymentCompletedEvent;
 import com.vijendra.pulsestream.common.event.PaymentFailedEvent;
@@ -20,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -30,6 +32,7 @@ public class PaymentService {
     private final PaymentRepository paymentRepository;
     private static final String PAYMENT_FAILED = "PAYMENT_FAILED";
     private static final String PAYMENT_COMPLETED = "PAYMENT_COMPLETED";
+    private static final String INVENTORY_FAILED = "INVENTORY_FAILED";
 
     private static final int MAX_LIMIT = 5000;
     Logger log = LoggerFactory.getLogger(PaymentService.class);
@@ -116,5 +119,38 @@ public class PaymentService {
         );
 
         kafkaTemplate.send(KafkaTopicConfig.PAYMENT_EVENTS_TOPIC, orderId, paymentCompletedEnvelope);
+    }
+
+    @Transactional
+    @KafkaListener(topics = "inventory-events")
+    public void processInventoryEvents(EventEnvelope<?> event) {
+        if(!event.eventType().equals(INVENTORY_FAILED)) {
+            return;
+        }
+
+        String eventId = event.eventId();
+        // Inbox or Deduplication or idempotence check
+        if (processedEventRepository.existsByEventId(eventId)) {
+            log.warn("Duplicate INVENTORY_FAILED event received. eventId: {}", eventId);
+            return;
+        }
+
+        InventoryFailedEvent failedEvent = objectMapper.convertValue(event.payload(), InventoryFailedEvent.class);
+        String orderId = failedEvent.orderId();
+
+        log.warn("INVENTORY_FAILED received for order: {}. Initiating compensating refund...", orderId);
+
+        List<PaymentEntity> payments = paymentRepository.findByOrderIdAndStatus(orderId, PaymentStatus.COMPLETED);
+        for (PaymentEntity payment : payments) {
+            payment.setStatus(PaymentStatus.REFUNDED);
+            paymentRepository.save(payment);
+            log.info("Compensating refund COMPLETED for order: {} | paymentId: {}", orderId, payment.getId());
+        }
+
+        ProcessedEventEntity processedEvent = new ProcessedEventEntity();
+        processedEvent.setEventId(eventId);
+        processedEvent.setEventType("INVENTORY_FAILED");
+        processedEvent.setAggregateId(orderId);
+        processedEventRepository.save(processedEvent);
     }
 }
