@@ -1,6 +1,7 @@
 package com.vijendra.pulsestream.payment.service;
 
 import com.vijendra.pulsestream.common.envelope.EventEnvelope;
+import com.vijendra.pulsestream.common.event.InventoryFailedEvent;
 import com.vijendra.pulsestream.common.event.OrderCreatedEvent;
 import com.vijendra.pulsestream.payment.entity.PaymentEntity;
 import com.vijendra.pulsestream.payment.entity.ProcessedEventEntity;
@@ -9,6 +10,7 @@ import com.vijendra.pulsestream.payment.repository.PaymentRepository;
 import com.vijendra.pulsestream.payment.repository.ProcessedEventRepository;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.assertj.core.api.Assertions;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -26,6 +28,7 @@ import org.testcontainers.utility.DockerImageName;
 
 import javax.print.Doc;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -64,6 +67,7 @@ public class PaymentConsumerIntegrationTest {
     }
 
     private static final BlockingQueue<EventEnvelope<?>> paymentEventQueue = new LinkedBlockingQueue<>();
+    private static final BlockingQueue<EventEnvelope<?>> inventoryEventQueue = new LinkedBlockingQueue<>();
 
     @Autowired
     private KafkaTemplate<String, Object> kafkaTemplate;
@@ -71,10 +75,16 @@ public class PaymentConsumerIntegrationTest {
     @BeforeEach()
     public void setUp() {
         paymentEventQueue.clear();
+        inventoryEventQueue.clear();
     }
 
     @KafkaListener(topics = "payment-events", groupId = "payment-service-test-group")
     public void spyListner(EventEnvelope<?> envelope) {
+        paymentEventQueue.add(envelope);
+    }
+
+    @KafkaListener(topics = "inventory-events", groupId = "payment-service-test-group")
+    public void inventoryListner(EventEnvelope<?> envelope) {
         paymentEventQueue.add(envelope);
     }
 
@@ -171,5 +181,42 @@ public class PaymentConsumerIntegrationTest {
 
         Optional<ProcessedEventEntity> processedEvent = processedEventRepository.findById(eventId);
         assertThat(processedEvent).isNotEmpty();
+    }
+
+    @Test
+    public void processInventoryEvents_shouldRefundPayment_whenInventoryFailedReceived() throws InterruptedException {
+        // Arrange:
+        String orderId = UUID.randomUUID().toString();
+        PaymentEntity payment = new PaymentEntity();
+        payment.setOrderId(orderId);
+        payment.setAmount(BigDecimal.valueOf(100.50));
+        payment.setStatus(PaymentStatus.COMPLETED);
+        payment = paymentRepository.save(payment);
+
+        InventoryFailedEvent inventoryFailedEvent = new InventoryFailedEvent(
+                orderId,
+                "test-item-sku",
+                10,
+                "OUT_OF_STOCK",
+                Instant.now()
+        );
+
+        EventEnvelope<InventoryFailedEvent> envelope = EventEnvelope.of(
+                "INVENTORY_FAILED",
+                orderId,
+                inventoryFailedEvent
+        );
+
+        // ACT
+        kafkaTemplate.send("inventory-events", orderId, envelope);
+
+        // Assert
+        EventEnvelope<?> eventEnvelope = inventoryEventQueue.poll(5, TimeUnit.SECONDS);
+        Awaitility.await()
+                .atMost(5, TimeUnit.SECONDS)
+                .untilAsserted(() -> {
+                    List<PaymentEntity> refundedPayments = paymentRepository.findByOrderIdAndStatus(orderId, PaymentStatus.REFUNDED);
+                    assertThat(refundedPayments).hasSize(1);
+                });
     }
 }
