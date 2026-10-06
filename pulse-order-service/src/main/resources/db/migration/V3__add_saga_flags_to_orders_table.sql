@@ -1,0 +1,3 @@
+ALTER TABLE orders
+    ADD COLUMN payment_completed BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN inventory_reserved BOOLEAN NOT NULL DEFAULT FALSE;

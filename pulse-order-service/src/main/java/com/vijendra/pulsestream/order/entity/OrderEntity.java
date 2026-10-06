@@ -35,6 +35,9 @@ public class OrderEntity {
     @Enumerated(value = EnumType.STRING)
     private OrderStatus status = OrderStatus.PENDING;
 
+    private boolean paymentCompleted = false;
+    private boolean inventoryReserved = false;
+
     @CreationTimestamp
     private Instant createdAt = Instant.now();
 

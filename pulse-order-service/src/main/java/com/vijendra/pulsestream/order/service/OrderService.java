@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vijendra.pulsestream.common.envelope.EventEnvelope;
 import com.vijendra.pulsestream.common.event.InventoryFailedEvent;
+import com.vijendra.pulsestream.common.event.InventoryReservedEvent;
 import com.vijendra.pulsestream.common.event.OrderCreatedEvent;
 import com.vijendra.pulsestream.order.config.KafkaTopicConfig;
 import com.vijendra.pulsestream.order.dto.CreateOrderRequest;
@@ -35,6 +36,8 @@ public class OrderService {
     private final ObjectMapper objectMapper;
 
     private static final String INVENTORY_FAILED = "INVENTORY_FAILED";
+    private static final String INVENTORY_RESERVED = "INVENTORY_RESERVED";
+
 
     @Transactional
     public OrderResponse createOrder(CreateOrderRequest request) {
@@ -84,10 +87,15 @@ public class OrderService {
     @Transactional
     @KafkaListener(topics = "inventory-events")
     public void inventoryEventsListner(EventEnvelope<?> envelope) {
-        if(!envelope.eventType().equals(INVENTORY_FAILED)) {
-            return;
+        String eventType = envelope.eventType();
+        if (INVENTORY_FAILED.equals(eventType)) {
+            handleInventoryFailed(envelope);
+        } else if (INVENTORY_RESERVED.equals(eventType)) {
+            handleInventoryReserved(envelope);
         }
+    }
 
+    private void handleInventoryFailed(EventEnvelope<?> envelope) {
         InventoryFailedEvent failedEvent = objectMapper.convertValue(envelope.payload(), InventoryFailedEvent.class);
         String orderId = failedEvent.orderId();
 
@@ -107,5 +115,36 @@ public class OrderService {
 
         order.setStatus(OrderStatus.CANCELLED);
         orderRepository.save(order);
+    }
+
+    private void handleInventoryReserved(EventEnvelope<?> envelope) {
+        InventoryReservedEvent reservedEvent = objectMapper.convertValue(envelope.payload(), InventoryReservedEvent.class);
+        String orderId = reservedEvent.orderId();
+
+        log.warn("INVENTORY_RESERVED received for order: {}. Initiating compensating cancellation action...", orderId);
+
+        Optional<OrderEntity> orderEntity = orderRepository.findById(orderId);
+        if(orderEntity.isEmpty()) {
+            log.error("Order not found!");
+            throw new RuntimeException("Order does not exist!");
+        }
+
+        OrderEntity order = orderEntity.get();
+        if(order.isInventoryReserved()) {
+            log.warn("Order is already updated");
+            return;
+        }
+
+        order.setInventoryReserved(true);
+        orderRepository.save(order);
+
+        processOrderConfirmation(order);
+    }
+
+    private void processOrderConfirmation(OrderEntity order) {
+        if(order.isInventoryReserved() && order.isPaymentCompleted()) {
+            order.setStatus(OrderStatus.CONFIRMED);
+            orderRepository.save(order);
+        }
     }
 }
