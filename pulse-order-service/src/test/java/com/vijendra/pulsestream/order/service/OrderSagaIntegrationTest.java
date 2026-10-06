@@ -3,6 +3,7 @@ package com.vijendra.pulsestream.order.service;
 
 import com.vijendra.pulsestream.common.envelope.EventEnvelope;
 import com.vijendra.pulsestream.common.event.InventoryFailedEvent;
+import com.vijendra.pulsestream.common.event.PaymentFailedEvent;
 import com.vijendra.pulsestream.order.entity.OrderEntity;
 import com.vijendra.pulsestream.order.entity.enums.OrderStatus;
 import com.vijendra.pulsestream.order.repository.OrderRepository;
@@ -82,6 +83,42 @@ public class OrderSagaIntegrationTest{
 
         // 2. Act
         kafkaTemplate.send("inventory-events", orderId, envelope);
+
+        // 3. Assert
+        Awaitility.await()
+                .atMost(5, TimeUnit.SECONDS)
+                .untilAsserted(() -> {
+                    Optional<OrderEntity> found = orderRepository.findById(orderId);
+                    assertThat(found).isPresent();
+                    assertThat(found.get().getStatus()).isEqualTo(OrderStatus.CANCELLED);
+                });
+    }
+
+    @Test
+    void paymentEventsListener_shouldCancelOrder_whenPaymentFailedIsReceived() {
+        // 1. Arrange
+        OrderEntity order = new OrderEntity();
+        order.setCustomerId("customer-12383isdjf");
+        order.setItemSku("test-sku");
+        order.setQuantity(2);
+        order.setTotalAmount(new BigDecimal("80.00"));
+        order.setStatus(OrderStatus.PENDING);
+        order = orderRepository.save(order);
+
+        String orderId = order.getId();
+        PaymentFailedEvent failedEvent = new PaymentFailedEvent(
+                orderId,
+                "INSUFFICIENT_FUNDS",
+                Instant.now()
+        );
+        EventEnvelope<PaymentFailedEvent> envelope = EventEnvelope.of(
+                "PAYMENT_FAILED",
+                orderId,
+                failedEvent
+        );
+
+        // 2. Act
+        kafkaTemplate.send("payment-events", orderId, envelope);
 
         // 3. Assert
         Awaitility.await()
