@@ -3,9 +3,7 @@ package com.vijendra.pulsestream.order.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vijendra.pulsestream.common.envelope.EventEnvelope;
-import com.vijendra.pulsestream.common.event.InventoryFailedEvent;
-import com.vijendra.pulsestream.common.event.InventoryReservedEvent;
-import com.vijendra.pulsestream.common.event.OrderCreatedEvent;
+import com.vijendra.pulsestream.common.event.*;
 import com.vijendra.pulsestream.order.config.KafkaTopicConfig;
 import com.vijendra.pulsestream.order.dto.CreateOrderRequest;
 import com.vijendra.pulsestream.order.dto.OrderResponse;
@@ -37,6 +35,8 @@ public class OrderService {
 
     private static final String INVENTORY_FAILED = "INVENTORY_FAILED";
     private static final String INVENTORY_RESERVED = "INVENTORY_RESERVED";
+    private static final String PAYMENT_COMPLETED = "PAYMENT_COMPLETED";
+    private static final String PAYMENT_FAILED = "PAYMENT_FAILED";
 
 
     @Transactional
@@ -121,7 +121,7 @@ public class OrderService {
         InventoryReservedEvent reservedEvent = objectMapper.convertValue(envelope.payload(), InventoryReservedEvent.class);
         String orderId = reservedEvent.orderId();
 
-        log.warn("INVENTORY_RESERVED received for order: {}. Initiating compensating cancellation action...", orderId);
+        log.warn("INVENTORY_RESERVED received for order: {}.", orderId);
 
         Optional<OrderEntity> orderEntity = orderRepository.findById(orderId);
         if(orderEntity.isEmpty()) {
@@ -141,8 +141,71 @@ public class OrderService {
         processOrderConfirmation(order);
     }
 
+    @Transactional
+    @KafkaListener(topics = "payment-events")
+    public void paymentEventsListener(EventEnvelope<?> envelope) {
+        String eventType = envelope.eventType();
+        if (PAYMENT_FAILED.equals(eventType)) {
+            handlePaymentFailed(envelope);
+        } else if (PAYMENT_COMPLETED.equals(eventType)) {
+            handlePaymentCompleted(envelope);
+        }
+    }
+
+    private void handlePaymentCompleted(EventEnvelope<?> envelope) {
+        PaymentCompletedEvent paymentCompleted = objectMapper.convertValue(envelope.payload(), PaymentCompletedEvent.class);
+        String orderId = paymentCompleted.orderId();
+
+        log.warn("PAYMENT_COMPLETED received for order: {}.", orderId);
+
+        Optional<OrderEntity> orderEntity = orderRepository.findById(orderId);
+        if(orderEntity.isEmpty()) {
+            log.error("Order not found!");
+            throw new RuntimeException("Order does not exist!");
+        }
+
+        OrderEntity order = orderEntity.get();
+        if(order.isPaymentCompleted()) {
+            log.warn("Order is already updated");
+            return;
+        }
+
+        order.setPaymentCompleted(true);
+        orderRepository.save(order);
+
+        processOrderConfirmation(order);
+    }
+
+    private void handlePaymentFailed(EventEnvelope<?> envelope) {
+        PaymentFailedEvent failedEvent = objectMapper.convertValue(envelope.payload(), PaymentFailedEvent.class);
+        String orderId = failedEvent.orderId();
+
+        log.warn("PAYMENT_FAILED received for order: {}. Initiating compensating cancellation action...", orderId);
+
+        Optional<OrderEntity> orderEntity = orderRepository.findById(orderId);
+        if(orderEntity.isEmpty()) {
+            log.error("Order not found!");
+            throw new RuntimeException("Order does not exist!");
+        }
+
+        OrderEntity order = orderEntity.get();
+        if(order.getStatus().equals(OrderStatus.CANCELLED)) {
+            log.warn("Order is already cancelled");
+            return;
+        }
+
+        order.setStatus(OrderStatus.CANCELLED);
+        orderRepository.save(order);
+    }
+
     private void processOrderConfirmation(OrderEntity order) {
+        if (order.getStatus() == OrderStatus.CANCELLED) {
+            log.warn("Order {} is already CANCELLED. Skipping confirmation.", order.getId());
+            return;
+        }
+
         if(order.isInventoryReserved() && order.isPaymentCompleted()) {
+            log.info("Order {} transitioned to CONFIRMED.", order.getId());
             order.setStatus(OrderStatus.CONFIRMED);
             orderRepository.save(order);
         }
