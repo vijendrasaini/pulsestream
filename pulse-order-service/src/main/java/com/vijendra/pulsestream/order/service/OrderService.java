@@ -123,7 +123,7 @@ public class OrderService {
 
         log.warn("INVENTORY_RESERVED received for order: {}.", orderId);
 
-        Optional<OrderEntity> orderEntity = orderRepository.findById(orderId);
+        Optional<OrderEntity> orderEntity = orderRepository.findByIdForUpdate(orderId);
         if(orderEntity.isEmpty()) {
             log.error("Order not found!");
             throw new RuntimeException("Order does not exist!");
@@ -158,7 +158,7 @@ public class OrderService {
 
         log.warn("PAYMENT_COMPLETED received for order: {}.", orderId);
 
-        Optional<OrderEntity> orderEntity = orderRepository.findById(orderId);
+        Optional<OrderEntity> orderEntity = orderRepository.findByIdForUpdate(orderId);
         if(orderEntity.isEmpty()) {
             log.error("Order not found!");
             throw new RuntimeException("Order does not exist!");
