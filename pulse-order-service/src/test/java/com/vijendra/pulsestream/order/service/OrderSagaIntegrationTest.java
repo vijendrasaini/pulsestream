@@ -3,6 +3,8 @@ package com.vijendra.pulsestream.order.service;
 
 import com.vijendra.pulsestream.common.envelope.EventEnvelope;
 import com.vijendra.pulsestream.common.event.InventoryFailedEvent;
+import com.vijendra.pulsestream.common.event.InventoryReservedEvent;
+import com.vijendra.pulsestream.common.event.PaymentCompletedEvent;
 import com.vijendra.pulsestream.common.event.PaymentFailedEvent;
 import com.vijendra.pulsestream.order.entity.OrderEntity;
 import com.vijendra.pulsestream.order.entity.enums.OrderStatus;
@@ -28,6 +30,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.*;
 
 @SpringBootTest
 @Testcontainers
@@ -85,7 +88,7 @@ public class OrderSagaIntegrationTest{
         kafkaTemplate.send("inventory-events", orderId, envelope);
 
         // 3. Assert
-        Awaitility.await()
+        await()
                 .atMost(5, TimeUnit.SECONDS)
                 .untilAsserted(() -> {
                     Optional<OrderEntity> found = orderRepository.findById(orderId);
@@ -121,12 +124,66 @@ public class OrderSagaIntegrationTest{
         kafkaTemplate.send("payment-events", orderId, envelope);
 
         // 3. Assert
-        Awaitility.await()
+        await()
                 .atMost(5, TimeUnit.SECONDS)
                 .untilAsserted(() -> {
                     Optional<OrderEntity> found = orderRepository.findById(orderId);
                     assertThat(found).isPresent();
                     assertThat(found.get().getStatus()).isEqualTo(OrderStatus.CANCELLED);
+                });
+    }
+
+    @Test
+    void shouldConfirmOrder_whenBothPaymentAndInventorySucceed() {
+        // 1. Arrange
+        OrderEntity order = new OrderEntity();
+        order.setCustomerId("customer-12383isdjf");
+        order.setItemSku("test-sku");
+        order.setQuantity(2);
+        order.setTotalAmount(new BigDecimal("80.00"));
+        order.setStatus(OrderStatus.PENDING);
+        order = orderRepository.save(order);
+
+        String orderId = order.getId();
+
+        InventoryReservedEvent inventoryReservedEvent = new InventoryReservedEvent(
+                UUID.randomUUID().toString(),
+                orderId,
+                "test-sku",
+                1,
+                Instant.now()
+        );
+
+        EventEnvelope<InventoryReservedEvent> inventoryEnvelope = EventEnvelope.of(
+                "INVENTORY_RESERVED",
+                orderId,
+                inventoryReservedEvent
+        );
+
+        PaymentCompletedEvent paymentCompletedEvent = new PaymentCompletedEvent(
+                UUID.randomUUID().toString(),
+                orderId,
+                BigDecimal.valueOf(100.00),
+                Instant.now()
+        );
+
+        EventEnvelope<PaymentCompletedEvent> paymentEnvelope = EventEnvelope.of(
+                "PAYMENT_COMPLETED",
+                orderId,
+                paymentCompletedEvent
+        );
+
+        //2. Act
+        kafkaTemplate.send("inventory-events", orderId, inventoryEnvelope);
+        kafkaTemplate.send("payment-events", orderId, paymentEnvelope);
+
+        //3. Assert
+        await()
+                .atMost(5, TimeUnit.SECONDS)
+                .untilAsserted(() -> {
+                    Optional<OrderEntity> found = orderRepository.findById(orderId);
+                    assertThat(found).isPresent();
+                    assertThat(found.get().getStatus()).isEqualTo(OrderStatus.CONFIRMED);
                 });
     }
 }
