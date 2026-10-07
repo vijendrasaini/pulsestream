@@ -28,25 +28,25 @@
 
 ```text
                                   [ HTTP Client ]
-                                         │
-                                         ▼ (POST /orders)
-                              ┌─────────────────────┐
-                              │ pulse-order-service │ (Port 8081)
-                              │ DB: pulse_orders    │
-                              └──────────┬──────────┘
-                                         │ (Transactional Outbox)
-                                         ▼
-                         ═════════════════════════════
+                                         |
+                                         v (POST /orders)
+                              +---------------------+
+                              | pulse-order-service | (Port 8081)
+                              | DB: pulse_orders    |
+                              +----------+----------+
+                                         | (Transactional Outbox)
+                                         v
+                         =============================
                                 KAFKA EVENT LOG
-                         ═════════════════════════════
-                                 ▲           ▲
-                                 │           │
-                                 ▼           ▼
-                      ┌──────────────────┐   ┌─────────────────────┐
-                      │pulse-payment-svc │   │ pulse-inventory-svc │
-                      │  (Port 8082)     │   │    (Port 8083)      │
-                      │ DB: pulse_payment│   │ DB: pulse_inventory │
-                      └──────────────────┘   └─────────────────────┘
+                         =============================
+                                 ^           ^
+                                 |           |
+                                 v           v
+                      +------------------+   +---------------------+
+                      |pulse-payment-svc |   | pulse-inventory-svc |
+                      |  (Port 8082)     |   |    (Port 8083)      |
+                      | DB: pulse_payment|   | DB: pulse_inventory |
+                      +------------------+   +---------------------+
 ```
 
 ---
